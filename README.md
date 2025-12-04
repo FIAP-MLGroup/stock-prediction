@@ -153,7 +153,7 @@ pip install -r requirements.txt
     Antes do pré-processamento, garantimos que o CSV está limpo e no formato esperado (Date,Open,High,Low,Close,Adj Close,Volume).
 
     ```bash
-    python src/preprocessing/preprocess.py data/current.csv
+    python src/preprocessing/preprocess.py
     ```
 
     Saída esperada:
