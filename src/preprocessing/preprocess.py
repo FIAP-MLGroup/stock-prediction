@@ -41,4 +41,10 @@ def preprocess(csv_path, window=60):
     print("Gerado: data/X.npy, data/y.npy, models/scaler.pkl")
 
 if __name__ == "__main__":
-    preprocess(sys.argv[1])
+
+    if len(sys.argv) > 1:
+        input_file = sys.argv[1]
+    else:
+        input_file = "data/current.csv"
+
+    preprocess(input_file)
