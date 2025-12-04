@@ -1,0 +1,54 @@
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Dados e artefatos gerados
+data/
+models/metrics.json
+*.npy
+*.h5
+*.pkl
+*.joblib
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
+# VSCode
+.vscode/
+
+# Pytest
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+docker-compose.override.yml
+
+# Build e distribuição
+build/
+dist/
+*.egg-info/
+
+# Variáveis de ambiente
+.env
+.env.*
+
+# Coverage
+.coverage
+htmlcov/
+
+# Util
+pipeline_train.sh

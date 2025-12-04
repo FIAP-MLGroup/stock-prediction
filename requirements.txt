@@ -1,0 +1,9 @@
+tensorflow
+fastapi
+uvicorn
+yfinance
+pandas
+numpy
+scikit-learn
+joblib
+prometheus_client
