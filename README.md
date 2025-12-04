@@ -138,8 +138,8 @@ pip install -r requirements.txt
 
     ``` bash
     #   PETR4.SA      -> Código do ativo no Yahoo Finance
-    #   2015-01-01    -> Data inicial da série histórica
-    #   2024-01-01    -> Data final da série histórica
+    #   2015-01-01    -> Data inicial da série histórica (YYYY-MM-DD)
+    #   2024-01-01    -> Data final da série histórica  (YYYY-MM-DD)
     python src/collector/fetch_yfinance.py PETR4.SA 2015-01-01 2024-01-01
     ```
 
@@ -147,7 +147,7 @@ pip install -r requirements.txt
 
         data/current.csv
 
-2. Normalização / limpeza do CSV
+2. Normalização / Limpeza do CSV
 
     Antes do pré-processamento, garantimos que o CSV está limpo e no formato esperado (Date,Open,High,Low,Close,Adj Close,Volume).
 
