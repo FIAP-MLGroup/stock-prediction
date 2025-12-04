@@ -9,8 +9,6 @@ A solução utiliza as seguintes tecnologias:
 - **FastAPI** para disponibilização das previsões em uma API REST  
 - **Docker** para empacotamento, reprodutibilidade e execução da aplicação em qualquer ambiente  
 
-O modelo de rede neural LSTM é treinado utilizando séries temporais do preço de fechamento de uma ação específica, permitindo capturar padrões temporais e dependências sequenciais nos dados financeiros.
-
 ## Funcionamento da Solução
 
 A arquitetura do projeto segue um **modelo desacoplado por ativo**, onde **cada ação possui seu próprio ciclo completo de treinamento e uma imagem Docker dedicada**. O funcionamento ocorre da seguinte forma:
@@ -30,8 +28,6 @@ A arquitetura do projeto segue um **modelo desacoplado por ativo**, onde **cada 
    - O modelo treinado (`.h5`)  
    - Os arquivos de dados (`.csv`, `.npy`)  
    - A API de inferência  
-
-   são empacotados **em uma única imagem Docker específica para aquele ativo**.
 
 5. **Disponibilização via API REST**  
    A imagem gerada expõe o endpoint `/predict`, permitindo a realização de inferências apenas para o ativo utilizado no treinamento.
@@ -140,7 +136,7 @@ pip install -r requirements.txt
     #   PETR4.SA      -> Código do ativo no Yahoo Finance
     #   2015-01-01    -> Data inicial da série histórica (YYYY-MM-DD)
     #   2024-01-01    -> Data final da série histórica  (YYYY-MM-DD)
-    python src/collector/fetch_yfinance.py PETR4.SA 2015-01-01 2024-01-01
+    python src/collector/fetch_yfinance.py PETR4.SA 2015-01-01 2025-12-03
     ```
 
     Saída esperada:
