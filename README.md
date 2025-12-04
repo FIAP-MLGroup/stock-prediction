@@ -161,6 +161,7 @@ pip install -r requirements.txt
     - `data/current.csv`: série de preços de fechamento (`Close`) processada e pronta para uso no  treinamento/inferência.
     - `data/X.npy`: dados de entrada do modelo no formato de janelas temporais.
     - `data/y.npy`: valores reais esperados pelo modelo para cada janela de `X.npy`.
+    - `models/scaler.pkl`: objeto de normalização treinado no pré-processamento, usado para aplicar a mesma escala aos dados durante a inferência.
 
 ## Treinamento do Modelo
 
