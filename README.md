@@ -145,7 +145,8 @@ pip install -r requirements.txt
 
     Saída esperada:
 
-        data/current.csv
+    - `data/current.csv`: dados brutos do ativo obtidos diretamente do Yahoo Finance.
+ 
 
 2. Normalização / Limpeza do CSV
 
@@ -157,9 +158,9 @@ pip install -r requirements.txt
 
     Saída esperada:
 
-        data/X.npy
-        data/y.npy
-        data/current.csv
+    - `data/current.csv`: série de preços de fechamento (`Close`) processada e pronta para uso no  treinamento/inferência.
+    - `data/X.npy`: dados de entrada do modelo no formato de janelas temporais.
+    - `data/y.npy`: valores reais esperados pelo modelo para cada janela de `X.npy`.
 
 ## Treinamento do Modelo
 
