@@ -1,8 +1,9 @@
 import time
+import json
+import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import joblib
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -10,75 +11,87 @@ from fastapi.responses import PlainTextResponse
 from prometheus_client import (
     Counter,
     Histogram,
+    CollectorRegistry,
     generate_latest,
-    CONTENT_TYPE_LATEST,
+    CONTENT_TYPE_LATEST
 )
 
-# -----------------------------------------------------------------------------
-# Configurações
-# -----------------------------------------------------------------------------
+# ===========================
+# CONFIGURAÇÕES
+# ===========================
 
 DATA_PATH = "data/current.csv"
 MODEL_PATH = "models/model.h5"
 SCALER_PATH = "models/scaler.pkl"
+METRICS_PATH = "models/metrics.json"
+WINDOW_SIZE = 60
 
-app = FastAPI(title="LSTM Stock Prediction API")
+# ===========================
+# PROMETHEUS METRICS
+# ===========================
 
-# -----------------------------------------------------------------------------
-# Carregamento de modelo e scaler
-# -----------------------------------------------------------------------------
-
-model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-scaler = joblib.load(SCALER_PATH)
-
-WINDOW_SIZE = model.input_shape[1]
-
-# -----------------------------------------------------------------------------
-# Métricas Prometheus
-# -----------------------------------------------------------------------------
+registry = CollectorRegistry()
 
 REQUEST_COUNT = Counter(
     "http_requests_total",
-    "Total de requisições HTTP",
-    ["endpoint", "method", "status"]
+    "Total de requisições no endpoint /predict",
+    registry=registry
 )
 
 REQUEST_LATENCY = Histogram(
     "http_request_latency_seconds",
-    "Latência das requisições HTTP",
-    ["endpoint"]
+    "Latência das requisições de inferência",
+    registry=registry
 )
 
-# -----------------------------------------------------------------------------
-# Endpoints
-# -----------------------------------------------------------------------------
+# ===========================
+# CARGA DOS ARTEFATOS
+# ===========================
+
+model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+scaler = joblib.load(SCALER_PATH)
+
+with open(METRICS_PATH) as f:
+    training_metrics = json.load(f)
+
+# ===========================
+# FASTAPI
+# ===========================
+
+app = FastAPI(title="Stock Prediction API")
+
+# ===========================
+# HEALTH
+# ===========================
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+# ===========================
+# PREDICT
+# ===========================
 
 @app.get("/predict")
 def predict():
-    start = time.time()
+    start_time = time.time()
+    REQUEST_COUNT.inc()
 
     try:
         df = pd.read_csv(DATA_PATH)
 
         if "Close" not in df.columns:
-            REQUEST_COUNT.labels("/predict", "GET", "400").inc()
             raise HTTPException(
                 status_code=400,
-                detail="Arquivo CSV não contém a coluna 'Close'"
+                detail="CSV não contém a coluna 'Close'"
             )
 
         closes = df["Close"].astype(float).values
 
         if len(closes) < WINDOW_SIZE:
-            REQUEST_COUNT.labels("/predict", "GET", "400").inc()
             raise HTTPException(
                 status_code=400,
-                detail=f"CSV precisa conter ao menos {WINDOW_SIZE} valores"
+                detail=f"O CSV precisa ter pelo menos {WINDOW_SIZE} valores"
             )
 
         last_window = closes[-WINDOW_SIZE:].reshape(-1, 1)
@@ -87,13 +100,8 @@ def predict():
         X = np.array([last_window_scaled])
         X = X.reshape((1, WINDOW_SIZE, 1))
 
-        prediction_scaled = model.predict(X)
+        prediction_scaled = model.predict(X, verbose=0)
         prediction = scaler.inverse_transform(prediction_scaled)[0][0]
-
-        latency = time.time() - start
-
-        REQUEST_LATENCY.labels("/predict").observe(latency)
-        REQUEST_COUNT.labels("/predict", "GET", "200").inc()
 
         return {
             "prediction": float(prediction)
@@ -101,15 +109,41 @@ def predict():
 
     except HTTPException:
         raise
-
     except Exception as e:
-        REQUEST_COUNT.labels("/predict", "GET", "500").inc()
         raise HTTPException(status_code=500, detail=str(e))
 
+    finally:
+        REQUEST_LATENCY.observe(time.time() - start_time)
+
+# ===========================
+# METRICS
+# ===========================
 
 @app.get("/metrics")
 def metrics():
+    """
+    Exposição Prometheus:
+    - Métricas do modelo (offline)
+    - Métricas de runtime (latência e request rate)
+    """
+
+    metrics_payload = f"""
+# HELP model_mae Mean Absolute Error
+# TYPE model_mae gauge
+model_mae {training_metrics["mae"]}
+
+# HELP model_rmse Root Mean Squared Error
+# TYPE model_rmse gauge
+model_rmse {training_metrics["rmse"]}
+
+# HELP model_mape Mean Absolute Percentage Error
+# TYPE model_mape gauge
+model_mape {training_metrics["mape"]}
+"""
+
+    prometheus_metrics = generate_latest(registry).decode("utf-8")
+
     return PlainTextResponse(
-        generate_latest(),
+        metrics_payload + "\n" + prometheus_metrics,
         media_type=CONTENT_TYPE_LATEST
     )
