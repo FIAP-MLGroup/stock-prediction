@@ -1,54 +1,62 @@
 import time
-import json
-import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import joblib
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 
-# ===========================
-# CONFIGURAÇÕES FIXAS
-# ===========================
+from prometheus_client import (
+    Counter,
+    Histogram,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
+
+# -----------------------------------------------------------------------------
+# Configurações
+# -----------------------------------------------------------------------------
 
 DATA_PATH = "data/current.csv"
 MODEL_PATH = "models/model.h5"
 SCALER_PATH = "models/scaler.pkl"
-METRICS_PATH = "models/metrics.json"
-WINDOW_SIZE = 60
 
-# ===========================
-# CARGA DOS ARTEFATOS
-# ===========================
+app = FastAPI(title="LSTM Stock Prediction API")
 
-print("Carregando modelo...")
+# -----------------------------------------------------------------------------
+# Carregamento de modelo e scaler
+# -----------------------------------------------------------------------------
+
 model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-
-print("Carregando scaler...")
 scaler = joblib.load(SCALER_PATH)
 
-print("Carregando métricas...")
-with open(METRICS_PATH) as f:
-    training_metrics = json.load(f)
+WINDOW_SIZE = model.input_shape[1]
 
-# ===========================
-# FASTAPI
-# ===========================
+# -----------------------------------------------------------------------------
+# Métricas Prometheus
+# -----------------------------------------------------------------------------
 
-app = FastAPI(title="Stock Prediction API")
+REQUEST_COUNT = Counter(
+    "http_requests_total",
+    "Total de requisições HTTP",
+    ["endpoint", "method", "status"]
+)
 
-# ===========================
-# HEALTHCHECK
-# ===========================
+REQUEST_LATENCY = Histogram(
+    "http_request_latency_seconds",
+    "Latência das requisições HTTP",
+    ["endpoint"]
+)
+
+# -----------------------------------------------------------------------------
+# Endpoints
+# -----------------------------------------------------------------------------
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# ===========================
-# PREDICT (ÚNICO ATIVO)
-# ===========================
 
 @app.get("/predict")
 def predict():
@@ -58,14 +66,19 @@ def predict():
         df = pd.read_csv(DATA_PATH)
 
         if "Close" not in df.columns:
-            raise HTTPException(status_code=400, detail="CSV sem coluna 'Close'")
+            REQUEST_COUNT.labels("/predict", "GET", "400").inc()
+            raise HTTPException(
+                status_code=400,
+                detail="Arquivo CSV não contém a coluna 'Close'"
+            )
 
         closes = df["Close"].astype(float).values
 
         if len(closes) < WINDOW_SIZE:
+            REQUEST_COUNT.labels("/predict", "GET", "400").inc()
             raise HTTPException(
                 status_code=400,
-                detail=f"CSV precisa ter no mínimo {WINDOW_SIZE} valores"
+                detail=f"CSV precisa conter ao menos {WINDOW_SIZE} valores"
             )
 
         last_window = closes[-WINDOW_SIZE:].reshape(-1, 1)
@@ -79,32 +92,24 @@ def predict():
 
         latency = time.time() - start
 
+        REQUEST_LATENCY.labels("/predict").observe(latency)
+        REQUEST_COUNT.labels("/predict", "GET", "200").inc()
+
         return {
-            "prediction": float(prediction),
-            "latency_seconds": latency
+            "prediction": float(prediction)
         }
 
+    except HTTPException:
+        raise
+
     except Exception as e:
+        REQUEST_COUNT.labels("/predict", "GET", "500").inc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===========================
-# MÉTRICAS PROMETHEUS
-# ===========================
-
-@app.get("/metrics", response_class=PlainTextResponse)
+@app.get("/metrics")
 def metrics():
-    prometheus_metrics = f"""
-# HELP model_mae Mean Absolute Error
-# TYPE model_mae gauge
-model_mae {training_metrics['mae']}
-
-# HELP model_rmse Root Mean Squared Error
-# TYPE model_rmse gauge
-model_rmse {training_metrics['rmse']}
-
-# HELP model_mape Mean Absolute Percentage Error
-# TYPE model_mape gauge
-model_mape {training_metrics['mape']}
-"""
-    return prometheus_metrics.strip()
+    return PlainTextResponse(
+        generate_latest(),
+        media_type=CONTENT_TYPE_LATEST
+    )
